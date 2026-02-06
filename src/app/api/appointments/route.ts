@@ -2,6 +2,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getData, addItem, updateItem, deleteItem } from '@/lib/db/database';
 
+// Type definition for appointments
+export interface Appointment {
+  id: string;
+  patientId: string;
+  doctorId: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  type: 'new' | 'followup' | 'emergency';
+  status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no-show';
+  notes: string;
+  fees: number;
+  feesPaid: number;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
@@ -9,7 +26,7 @@ export async function GET(request: NextRequest) {
   const doctorId = searchParams.get('doctorId');
   const patientId = searchParams.get('patientId');
   
-  let appointments = getData('appointments');
+  let appointments = getData<Appointment>('appointments');
   
   if (id) {
     const appointment = appointments.find(a => a.id === id);

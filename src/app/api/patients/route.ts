@@ -7,12 +7,38 @@ if (typeof window === 'undefined') {
   initializeDemoData();
 }
 
+// Type definition for patients
+export interface Patient {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  dateOfBirth: string;
+  gender: 'male' | 'female' | 'other';
+  bloodGroup: string;
+  occupation: string;
+  referredBy: string;
+  notes: string;
+  photoUrl: string;
+  tags: string;
+  isActive: number;
+  registrationNumber: string;
+  registrationDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
   const search = searchParams.get('search');
   
-  let patients = getData('patients');
+  let patients = getData<Patient>('patients');
   
   if (id) {
     const patient = patients.find(p => p.id === id);

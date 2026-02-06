@@ -132,7 +132,7 @@ export default function SlotsSettingsPage() {
   // Group slots by day
   const slotsByDay = DAYS.map(day => ({
     ...day,
-    slots: slots.filter(slot => slot.dayOfWeek === day.value)
+    slots: slots.filter(slot => slot.dayOfWeek === parseInt(day.value))
   }));
 
   if (isLoading) {

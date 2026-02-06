@@ -2,13 +2,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getData, addItem, updateItem, deleteItem } from '@/lib/db/database';
 
+// Type definition for messages
+export interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  subject: string;
+  content: string;
+  isRead: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
   const senderId = searchParams.get('senderId');
   const receiverId = searchParams.get('receiverId');
   
-  let messages = getData('messages');
+  let messages = getData<Message>('messages');
   
   if (id) {
     const message = messages.find(m => m.id === id);

@@ -2,13 +2,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getData, addItem, updateItem, deleteItem } from '@/lib/db/database';
 
+// Type definition for users
+export interface User {
+  id: string;
+  username: string;
+  password: string;
+  name: string;
+  role: 'admin' | 'doctor' | 'receptionist';
+  email: string;
+  phone: string;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
   const username = searchParams.get('username');
   const role = searchParams.get('role');
   
-  let users = getData('users');
+  let users = getData<User>('users');
   
   if (id) {
     const user = users.find(u => u.id === id);
@@ -31,7 +45,7 @@ export async function GET(request: NextRequest) {
   }
   
   // Remove password from response
-  users = users.map(({ password, ...user }) => user);
+  users = users.map(({ password, ...user }: any) => user);
   
   return NextResponse.json(users);
 }
@@ -39,11 +53,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const user = addItem('users', {
+    const user = addItem<User>('users', {
       ...body,
       isActive: 1
     });
-    const { password, ...userWithoutPassword } = user;
+    const { password, ...userWithoutPassword } = user as User & { password: string };
     return NextResponse.json(userWithoutPassword, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
@@ -59,12 +73,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
     
-    const user = updateItem('users', id, updates);
+    const user = updateItem<User>('users', id, updates);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
-    const { password, ...userWithoutPassword } = user;
+    const { password, ...userWithoutPassword } = user as User & { password?: string };
     return NextResponse.json(userWithoutPassword);
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });

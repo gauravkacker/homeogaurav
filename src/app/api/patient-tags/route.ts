@@ -2,11 +2,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getData, addItem, updateItem, deleteItem } from '@/lib/db/database';
 
+// Type definition for patient tags
+export interface PatientTag {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
   
-  const tags = getData('patientTags');
+  const tags = getData<PatientTag>('patientTags');
   
   if (id) {
     const tag = tags.find(t => t.id === id);

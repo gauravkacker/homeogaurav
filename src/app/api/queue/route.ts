@@ -2,13 +2,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getData, addItem, updateItem, deleteItem } from '@/lib/db/database';
 
+// Type definition for queue items
+export interface QueueItem {
+  id: string;
+  patientId: string;
+  doctorId: string;
+  date: string;
+  position: number;
+  status: 'waiting' | 'in-progress' | 'completed' | 'cancelled';
+  appointmentId?: string;
+  notes?: string;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
   const doctorId = searchParams.get('doctorId');
   const date = searchParams.get('date');
   
-  let queue = getData('queue');
+  let queue = getData<QueueItem>('queue');
   
   if (id) {
     const item = queue.find(q => q.id === id);
@@ -37,7 +52,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Get current queue count for this doctor/date to set position
-    const existingQueue = getData('queue').filter(
+    const existingQueue = getData<QueueItem>('queue').filter(
       q => q.doctorId === body.doctorId && q.date === body.date
     );
     

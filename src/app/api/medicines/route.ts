@@ -2,13 +2,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getData, addItem, updateItem, deleteItem } from '@/lib/db/database';
 
+// Type definition for medicines
+export interface Medicine {
+  id: string;
+  name: string;
+  category: string;
+  potency: string;
+  unit: string;
+  stock: number;
+  minStock: number;
+  price: number;
+  manufacturer: string;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
   const search = searchParams.get('search');
   const category = searchParams.get('category');
   
-  let medicines = getData('medicines');
+  let medicines = getData<Medicine>('medicines');
   
   if (id) {
     const medicine = medicines.find(m => m.id === id);

@@ -2,12 +2,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getData, addItem, updateItem, deleteItem } from '@/lib/db/database';
 
+// Type definition for fees
+export interface Fee {
+  id: string;
+  name: string;
+  amount: number;
+  type: 'consultation' | 'procedure' | 'package';
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
   const type = searchParams.get('type');
   
-  let fees = getData('fees');
+  let fees = getData<Fee>('fees');
   
   if (id) {
     const fee = fees.find(f => f.id === id);

@@ -2,13 +2,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getData, addItem, updateItem, deleteItem } from '@/lib/db/database';
 
+// Type definition for visits
+export interface Visit {
+  id: string;
+  patientId: string;
+  doctorId: string;
+  appointmentId: string;
+  visitDate: string;
+  chiefComplaint: string;
+  history: string;
+  examination: string;
+  diagnosis: string;
+  prescription: string;
+  advice: string;
+  nextVisitDate: string;
+  weight: number;
+  temperature: number;
+  pulse: number;
+  bloodPressure: string;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
   const patientId = searchParams.get('patientId');
   const doctorId = searchParams.get('doctorId');
   
-  let visits = getData('visits');
+  let visits = getData<Visit>('visits');
   
   if (id) {
     const visit = visits.find(v => v.id === id);

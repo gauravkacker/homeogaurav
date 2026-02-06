@@ -2,12 +2,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getData, addItem, updateItem, deleteItem } from '@/lib/db/database';
 
+// Type definition for combinations
+export interface Combination {
+  id: string;
+  name: string;
+  medicines: string;
+  defaultPotency: string;
+  notes: string;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
   const search = searchParams.get('search');
   
-  let combinations = getData('combinations');
+  let combinations = getData<Combination>('combinations');
   
   if (id) {
     const combination = combinations.find(c => c.id === id);
