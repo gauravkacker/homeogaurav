@@ -12,14 +12,16 @@ A complete Homeopathy Clinic Patient Management System built with Next.js 16, Ty
 - [x] localStorage-based data persistence with demo initialization
 - [x] Authentication system with role-based access (doctor, admin, receptionist)
 - [x] Dashboard with statistics and quick actions
-- [x] Patient management (list, add, view, edit)
+- [x] Patient management (list, add, view, edit, visits, tags, import)
 - [x] Appointments module (list, schedule, manage)
 - [x] Doctor Panel with smart prescription parsing
-- [x] Queue management system
+- [x] Queue management system (main and doctor view)
 - [x] Internal messaging system
-- [x] Settings page (fees, registration, slots)
+- [x] Settings pages (general, fees, registration, slots, smart-parsing)
 - [x] Smart Parsing Settings for prescription recognition
 - [x] Admin module (users, activity log)
+- [x] UI Components library (Button, Card, Input, Badge, PhotoUpload)
+- [x] Layout components (Header, Sidebar)
 
 ## Current Structure
 
@@ -28,11 +30,13 @@ A complete Homeopathy Clinic Patient Management System built with Next.js 16, Ty
 | Authentication | `/login` | ✅ Complete |
 | Dashboard | `/dashboard` | ✅ Complete |
 | Patients | `/patients`, `/patients/new`, `/patients/[id]` | ✅ Complete |
-| Appointments | `/appointments`, `/appointments/new` | ✅ Complete |
+| Patients | `/patients/[id]/edit`, `/patients/[id]/visits/new` | ✅ Complete |
+| Patients | `/patients/tags`, `/patients/import` | ✅ Complete |
+| Appointments | `/appointments`, `/appointments/new`, `/appointments/[id]` | ✅ Complete |
 | Doctor Panel | `/doctor-panel` | ✅ Complete |
-| Queue | `/queue` | ✅ Complete |
+| Queue | `/queue`, `/queue/doctor` | ✅ Complete |
 | Messages | `/messages` | ✅ Complete |
-| Settings | `/settings`, `/settings/smart-parsing` | ✅ Complete |
+| Settings | `/settings`, `/settings/fees`, `/settings/registration`, `/settings/slots`, `/settings/smart-parsing` | ✅ Complete |
 | Admin | `/admin/users`, `/admin/activity-log` | ✅ Complete |
 
 ## API Routes
@@ -45,6 +49,7 @@ A complete Homeopathy Clinic Patient Management System built with Next.js 16, Ty
 | `/api/medicines` | GET, POST, PUT, DELETE | Medicine CRUD |
 | `/api/combinations` | GET, POST, PUT, DELETE | Combination medicines |
 | `/api/fees` | GET, POST, PUT, DELETE | Consultation fees |
+| `/api/slots` | GET, POST, PUT, DELETE | Time slots |
 | `/api/queue` | GET, POST, PUT, DELETE | Queue management |
 | `/api/messages` | GET, POST, PUT, DELETE | Internal messaging |
 | `/api/users` | GET, POST, PUT, DELETE | User management |
@@ -71,8 +76,17 @@ A complete Homeopathy Clinic Patient Management System built with Next.js 16, Ty
 - Doctor: Access to patients, appointments, prescriptions, queue
 - Receptionist: Patients, appointments, queue (read-only for sensitive data)
 
+### UI Components
+- Button (variants: primary, secondary, danger, ghost, outline)
+- Card (with Header, Title, Content, Footer variants)
+- Input (with label, error, helperText support)
+- Select and Textarea components
+- Badge (with StatusBadge helper)
+- PhotoUpload (with preview and remove)
+
 ## Session History
 
 | Date | Changes |
 |------|---------|
 | 2024-02-06 | Complete Homeo PMS application rebuilt from scratch after git sync issue |
+| 2024-02-06 | Added all missing pages: patient edit, visits, tags, import; appointment detail; queue doctor; settings pages (fees, registration, slots); UI components; layout components; comprehensive CSS styling |
