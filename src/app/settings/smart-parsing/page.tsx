@@ -1,435 +1,251 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-// Types for smart parsing configuration
-interface QuantityMapping {
-  id: string;
-  keyword: string;
-  displayValue: string;
-  enabled: boolean;
+interface SmartParsingSettings {
+  quantities: string[];
+  doseForms: string[];
+  dosePatterns: string[];
 }
-
-interface DoseFormMapping {
-  id: string;
-  keyword: string;
-  displayValue: string;
-  enabled: boolean;
-}
-
-interface DosePatternMapping {
-  id: string;
-  keyword: string;
-  patternValue: string;
-  description: string;
-  enabled: boolean;
-}
-
-interface SmartParsingConfig {
-  quantities: QuantityMapping[];
-  doseForms: DoseFormMapping[];
-  dosePatterns: DosePatternMapping[];
-}
-
-// Default configurations
-const defaultQuantities: QuantityMapping[] = [
-  { id: '1', keyword: '1dr', displayValue: '1dr', enabled: true },
-  { id: '2', keyword: '2dr', displayValue: '2dr', enabled: true },
-  { id: '3', keyword: '3dr', displayValue: '3dr', enabled: true },
-  { id: '4', keyword: '4dr', displayValue: '4dr', enabled: true },
-  { id: '5', keyword: '5dr', displayValue: '5dr', enabled: true },
-  { id: '6', keyword: '1/2oz', displayValue: '0.5oz', enabled: true },
-  { id: '7', keyword: '1oz', displayValue: '1oz', enabled: true },
-  { id: '8', keyword: '2oz', displayValue: '2oz', enabled: true },
-  { id: '9', keyword: '100ml', displayValue: '100ml', enabled: true },
-  { id: '10', keyword: '200ml', displayValue: '200ml', enabled: true },
-  { id: '11', keyword: '1 bottle', displayValue: '1 bottle', enabled: true },
-  { id: '12', keyword: '2 bottles', displayValue: '2 bottles', enabled: true },
-];
-
-const defaultDoseForms: DoseFormMapping[] = [
-  { id: '1', keyword: 'pills', displayValue: 'pills', enabled: true },
-  { id: '2', keyword: 'tab', displayValue: 'tablet', enabled: true },
-  { id: '3', keyword: 'tablet', displayValue: 'tablet', enabled: true },
-  { id: '4', keyword: 'liq', displayValue: 'liquid', enabled: true },
-  { id: '5', keyword: 'liquid', displayValue: 'liquid', enabled: true },
-  { id: '6', keyword: 'drops', displayValue: 'drops', enabled: true },
-  { id: '7', keyword: 'sachet', displayValue: 'sachet', enabled: true },
-  { id: '8', keyword: 'powder', displayValue: 'powder', enabled: true },
-  { id: '9', keyword: 'ointment', displayValue: 'ointment', enabled: true },
-  { id: '10', keyword: 'capsules', displayValue: 'capsules', enabled: true },
-  { id: '11', keyword: 'globules', displayValue: 'globules', enabled: true },
-  { id: '12', keyword: 'syrup', displayValue: 'syrup', enabled: true },
-];
-
-const defaultDosePatterns: DosePatternMapping[] = [
-  { id: '1', keyword: 'od', patternValue: '1-0-0', description: 'Once a day', enabled: true },
-  { id: '2', keyword: 'bd', patternValue: '1-0-1', description: 'Twice a day', enabled: true },
-  { id: '3', keyword: 'tds', patternValue: '1-1-1', description: 'Three times a day', enabled: true },
-  { id: '4', keyword: 'qid', patternValue: '1-1-1-1', description: 'Four times a day', enabled: true },
-  { id: '5', keyword: 'sos', patternValue: 'as needed', description: 'As needed', enabled: true },
-  { id: '6', keyword: 'hs', patternValue: '0-0-1', description: 'At bedtime', enabled: true },
-  { id: '7', keyword: '1-1-1', patternValue: '1-1-1', description: 'Three times a day', enabled: true },
-  { id: '8', keyword: '1-0-1', patternValue: '1-0-1', description: 'Twice a day', enabled: true },
-  { id: '9', keyword: '4-4-4', patternValue: '4-4-4', description: 'Four pills each time', enabled: true },
-  { id: '10', keyword: '3-3-3', patternValue: '3-3-3', description: 'Three pills each time', enabled: true },
-  { id: '11', keyword: '2-2-2', patternValue: '2-2-2', description: 'Two pills each time', enabled: true },
-  { id: '12', keyword: '1-1-1-1', patternValue: '1-1-1-1', description: 'Four times a day', enabled: true },
-];
 
 export default function SmartParsingSettingsPage() {
-  const [quantities, setQuantities] = useState<QuantityMapping[]>(defaultQuantities);
-  const [doseForms, setDoseForms] = useState<DoseFormMapping[]>(defaultDoseForms);
-  const [dosePatterns, setDosePatterns] = useState<DosePatternMapping[]>(defaultDosePatterns);
-  const [saved, setSaved] = useState(false);
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [settings, setSettings] = useState<SmartParsingSettings>({
+    quantities: ['1', '2', '3', '4', '5', '10', '15', '20', '30', '50', '100'],
+    doseForms: ['tablet', 'capsule', 'drop', 'puff', 'ml', 'tsp', 'tbsp', 'piece', 'cap'],
+    dosePatterns: ['1-0-1', '1-1-1', '2-2-2', '0-0-1', '1-0-0', '0-1-0', '2-0-2', '3-0-3']
+  });
+  const [newQuantity, setNewQuantity] = useState('');
+  const [newDoseForm, setNewDoseForm] = useState('');
+  const [newDosePattern, setNewDosePattern] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState('');
 
-  // Load config from localStorage on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const savedConfig = localStorage.getItem('smartParsingConfig');
-    if (savedConfig) {
-      try {
-        const config: SmartParsingConfig = JSON.parse(savedConfig);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        if (config.quantities?.length) setQuantities(config.quantities);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        if (config.doseForms?.length) setDoseForms(config.doseForms);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        if (config.dosePatterns?.length) setDosePatterns(config.dosePatterns);
-      } catch (e) {
-        console.error('Failed to load smart parsing config:', e);
-      }
+    const user = localStorage.getItem('currentUser');
+    if (!user) {
+      router.push('/login');
+      return;
     }
-  }, []);
+    setCurrentUser(JSON.parse(user));
+    loadSettings();
+  }, [router]);
 
-  // Save to localStorage
-  const saveConfig = () => {
-    const config: SmartParsingConfig = {
-      quantities,
-      doseForms,
-      dosePatterns,
-    };
-    localStorage.setItem('smartParsingConfig', JSON.stringify(config));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/smart-parsing');
+      const data = await res.json();
+      if (data.quantities) {
+        setSettings(data);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
   };
 
-  // Reset to defaults
-  const resetDefaults = () => {
-    setQuantities(defaultQuantities);
-    setDoseForms(defaultDoseForms);
-    setDosePatterns(defaultDosePatterns);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const saveSettings = async () => {
+    setIsLoading(true);
+    setMessage('');
+    try {
+      await fetch('/api/smart-parsing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+      setMessage('Settings saved successfully!');
+    } catch (error) {
+      setMessage('Error saving settings');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Add new mapping
   const addQuantity = () => {
-    setQuantities([...quantities, {
-      id: Date.now().toString(),
-      keyword: '',
-      displayValue: '',
-      enabled: true,
-    }]);
+    if (newQuantity && !settings.quantities.includes(newQuantity)) {
+      setSettings(prev => ({ ...prev, quantities: [...prev.quantities, newQuantity].sort() }));
+      setNewQuantity('');
+    }
+  };
+
+  const removeQuantity = (qty: string) => {
+    setSettings(prev => ({ ...prev, quantities: prev.quantities.filter(q => q !== qty) }));
   };
 
   const addDoseForm = () => {
-    setDoseForms([...doseForms, {
-      id: Date.now().toString(),
-      keyword: '',
-      displayValue: '',
-      enabled: true,
-    }]);
+    if (newDoseForm && !settings.doseForms.includes(newDoseForm.toLowerCase())) {
+      setSettings(prev => ({ ...prev, doseForms: [...prev.doseForms, newDoseForm.toLowerCase()].sort() }));
+      setNewDoseForm('');
+    }
+  };
+
+  const removeDoseForm = (form: string) => {
+    setSettings(prev => ({ ...prev, doseForms: prev.doseForms.filter(f => f !== form) }));
   };
 
   const addDosePattern = () => {
-    setDosePatterns([...dosePatterns, {
-      id: Date.now().toString(),
-      keyword: '',
-      patternValue: '',
-      description: '',
-      enabled: true,
-    }]);
+    if (newDosePattern && !settings.dosePatterns.includes(newDosePattern)) {
+      setSettings(prev => ({ ...prev, dosePatterns: [...prev.dosePatterns, newDosePattern] }));
+      setNewDosePattern('');
+    }
   };
 
-  // Remove mapping
-  const removeQuantity = (id: string) => {
-    setQuantities(quantities.filter(q => q.id !== id));
+  const removeDosePattern = (pattern: string) => {
+    setSettings(prev => ({ ...prev, dosePatterns: prev.dosePatterns.filter(p => p !== pattern) }));
   };
 
-  const removeDoseForm = (id: string) => {
-    setDoseForms(doseForms.filter(d => d.id !== id));
-  };
-
-  const removeDosePattern = (id: string) => {
-    setDosePatterns(dosePatterns.filter(p => p.id !== id));
-  };
-
-  // Update mapping
-  const updateQuantity = (id: string, field: keyof QuantityMapping, value: string | boolean) => {
-    setQuantities(quantities.map(q => q.id === id ? { ...q, [field]: value } : q));
-  };
-
-  const updateDoseForm = (id: string, field: keyof DoseFormMapping, value: string | boolean) => {
-    setDoseForms(doseForms.map(d => d.id === id ? { ...d, [field]: value } : d));
-  };
-
-  const updateDosePattern = (id: string, field: keyof DosePatternMapping, value: string | boolean) => {
-    setDosePatterns(dosePatterns.map(p => p.id === id ? { ...p, [field]: value } : p));
-  };
+  if (!currentUser) {
+    return <div className="loading" style={{ minHeight: '100vh' }}><div className="spinner"></div></div>;
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold text-gray-800">Smart Parsing Settings</h1>
-            <Link
-              href="/doctor-panel"
-              className="text-sm text-blue-600 hover:underline"
-            >
-              ← Back to Doctor Panel
-            </Link>
+    <div className="app-layout">
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <Link href="/dashboard" className="sidebar-logo">🏥 Homeo PMS</Link>
+        </div>
+        <nav className="sidebar-nav">
+          <div className="nav-section">
+            <div className="nav-section-title">Settings</div>
+            <Link href="/settings" className="nav-link">Settings</Link>
+            <Link href="/settings/smart-parsing" className="nav-link active">Smart Parsing</Link>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={resetDefaults}
-              className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+        </nav>
+      </aside>
+
+      <main className="main-content">
+        <header className="page-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <Link href="/settings" className="btn btn-secondary btn-sm">← Back</Link>
+            <div>
+              <h1 className="page-title">Smart Parsing Settings</h1>
+              <p className="page-subtitle">Configure prescription parsing rules</p>
+            </div>
+          </div>
+        </header>
+
+        <div className="page-content">
+          {message && (
+            <div style={{ 
+              padding: '0.75rem', 
+              background: message.includes('Error') ? '#fee2e2' : '#dcfce7', 
+              color: message.includes('Error') ? '#991b1b' : '#166534', 
+              borderRadius: '0.375rem', 
+              marginBottom: '1rem' 
+            }}>
+              {message}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+            {/* Quantities */}
+            <div className="card">
+              <h3 style={{ fontWeight: '600', marginBottom: '1rem' }}>Quantities</h3>
+              <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
+                Numeric values recognized in prescriptions
+              </p>
+              
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                {settings.quantities.map(qty => (
+                  <span key={qty} className="badge badge-info" style={{ cursor: 'pointer' }} onClick={() => removeQuantity(qty)}>
+                    {qty} ×
+                  </span>
+                ))}
+              </div>
+              
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Add quantity..."
+                  value={newQuantity}
+                  onChange={(e) => setNewQuantity(e.target.value)}
+                />
+                <button className="btn btn-primary" onClick={addQuantity}>Add</button>
+              </div>
+            </div>
+
+            {/* Dose Forms */}
+            <div className="card">
+              <h3 style={{ fontWeight: '600', marginBottom: '1rem' }}>Dose Forms</h3>
+              <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
+                Medicine form types recognized
+              </p>
+              
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                {settings.doseForms.map(form => (
+                  <span key={form} className="badge badge-success" style={{ cursor: 'pointer' }} onClick={() => removeDoseForm(form)}>
+                    {form} ×
+                  </span>
+                ))}
+              </div>
+              
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Add dose form..."
+                  value={newDoseForm}
+                  onChange={(e) => setNewDoseForm(e.target.value)}
+                />
+                <button className="btn btn-primary" onClick={addDoseForm}>Add</button>
+              </div>
+            </div>
+
+            {/* Dose Patterns */}
+            <div className="card">
+              <h3 style={{ fontWeight: '600', marginBottom: '1rem' }}>Dose Patterns</h3>
+              <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
+                Dosage frequency patterns (morning-noon-evening)
+              </p>
+              
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                {settings.dosePatterns.map(pattern => (
+                  <span key={pattern} className="badge badge-warning" style={{ cursor: 'pointer' }} onClick={() => removeDosePattern(pattern)}>
+                    {pattern} ×
+                  </span>
+                ))}
+              </div>
+              
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Add pattern (e.g., 1-0-1)..."
+                  value={newDosePattern}
+                  onChange={(e) => setNewDosePattern(e.target.value)}
+                />
+                <button className="btn btn-primary" onClick={addDosePattern}>Add</button>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '1.5rem' }}>
+            <button 
+              className="btn btn-primary btn-lg" 
+              onClick={saveSettings}
+              disabled={isLoading}
             >
-              Reset to Defaults
+              {isLoading ? 'Saving...' : 'Save All Settings'}
             </button>
-            <button
-              onClick={saveConfig}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              {saved ? '✓ Saved!' : 'Save Changes'}
-            </button>
+          </div>
+
+          {/* Example */}
+          <div className="card" style={{ marginTop: '1.5rem' }}>
+            <h3 style={{ fontWeight: '600', marginBottom: '1rem' }}>Example Usage</h3>
+            <p style={{ fontSize: '0.875rem', color: '#64748b' }}>
+              The smart parser will recognize prescriptions like:
+            </p>
+            <div style={{ marginTop: '0.75rem', padding: '1rem', background: '#f8fafc', borderRadius: '0.375rem', fontFamily: 'monospace' }}>
+              <div>Arnica 30C 2-0-2 for 15 days</div>
+              <div>Belladonna 30C 1-1-1 for 7 days</div>
+              <div>Rhus Tox 30C 1-0-0 for 10 days</div>
+              <div>Sulphur 200C 1 tablet 3 times daily</div>
+            </div>
           </div>
         </div>
-      </header>
-
-      <main className="p-6 max-w-4xl mx-auto space-y-8">
-        {/* Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <h3 className="font-medium text-blue-800 mb-2">How Smart Parsing Works</h3>
-          <p className="text-sm text-blue-700 mb-2">
-            When you type in the medicine field and press <strong>Enter</strong>, the system will automatically:
-          </p>
-          <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
-            <li>Match keywords like &quot;2dr&quot;, &quot;pills&quot;, &quot;TDS&quot; from your typing</li>
-            <li>Auto-fill the Quantity, Dose Form, and Pattern fields</li>
-            <li>Example: Type <code className="bg-blue-100 px-1 rounded">Arnica 200 2dr pills TDS for 7 days</code></li>
-          </ul>
-        </div>
-
-        {/* Quantity Mappings */}
-        <section className="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800">Quantity Mappings</h2>
-              <p className="text-sm text-gray-500">Map keywords to quantity values</p>
-            </div>
-            <button
-              onClick={addQuantity}
-              className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
-            >
-              + Add Quantity
-            </button>
-          </div>
-          
-          <div className="p-6">
-            <div className="grid grid-cols-4 gap-4 mb-4 text-sm font-medium text-gray-500">
-              <div className="col-span-1">Keyword (what you type)</div>
-              <div className="col-span-1">Quantity Value (what fills)</div>
-              <div className="col-span-1">Enabled</div>
-              <div className="col-span-1">Actions</div>
-            </div>
-            
-            <div className="space-y-2">
-              {quantities.map((q) => (
-                <div key={q.id} className="grid grid-cols-4 gap-4 items-center">
-                  <input
-                    type="text"
-                    value={q.keyword}
-                    onChange={(e) => updateQuantity(q.id, 'keyword', e.target.value)}
-                    placeholder="e.g., 2dr"
-                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="text"
-                    value={q.displayValue}
-                    onChange={(e) => updateQuantity(q.id, 'displayValue', e.target.value)}
-                    placeholder="e.g., 2dr"
-                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={q.enabled}
-                      onChange={(e) => updateQuantity(q.id, 'enabled', e.target.checked)}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                    />
-                  </div>
-                  <button
-                    onClick={() => removeQuantity(q.id)}
-                    className="text-red-500 hover:text-red-700 text-sm"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Dose Form Mappings */}
-        <section className="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800">Dose Form Mappings</h2>
-              <p className="text-sm text-gray-500">Map keywords to dose form values</p>
-            </div>
-            <button
-              onClick={addDoseForm}
-              className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
-            >
-              + Add Dose Form
-            </button>
-          </div>
-          
-          <div className="p-6">
-            <div className="grid grid-cols-4 gap-4 mb-4 text-sm font-medium text-gray-500">
-              <div className="col-span-1">Keyword (what you type)</div>
-              <div className="col-span-1">Dose Form Value (what fills)</div>
-              <div className="col-span-1">Enabled</div>
-              <div className="col-span-1">Actions</div>
-            </div>
-            
-            <div className="space-y-2">
-              {doseForms.map((d) => (
-                <div key={d.id} className="grid grid-cols-4 gap-4 items-center">
-                  <input
-                    type="text"
-                    value={d.keyword}
-                    onChange={(e) => updateDoseForm(d.id, 'keyword', e.target.value)}
-                    placeholder="e.g., pills"
-                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="text"
-                    value={d.displayValue}
-                    onChange={(e) => updateDoseForm(d.id, 'displayValue', e.target.value)}
-                    placeholder="e.g., pills"
-                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={d.enabled}
-                      onChange={(e) => updateDoseForm(d.id, 'enabled', e.target.checked)}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                    />
-                  </div>
-                  <button
-                    onClick={() => removeDoseForm(d.id)}
-                    className="text-red-500 hover:text-red-700 text-sm"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Dose Pattern Mappings */}
-        <section className="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800">Dose Pattern Mappings</h2>
-              <p className="text-sm text-gray-500">Map keywords to pattern values (e.g., TDS → 1-1-1)</p>
-            </div>
-            <button
-              onClick={addDosePattern}
-              className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
-            >
-              + Add Pattern
-            </button>
-          </div>
-          
-          <div className="p-6">
-            <div className="grid grid-cols-5 gap-4 mb-4 text-sm font-medium text-gray-500">
-              <div className="col-span-1">Keyword (what you type)</div>
-              <div className="col-span-1">Pattern Value</div>
-              <div className="col-span-1">Description</div>
-              <div className="col-span-1">Enabled</div>
-              <div className="col-span-1">Actions</div>
-            </div>
-            
-            <div className="space-y-2">
-              {dosePatterns.map((p) => (
-                <div key={p.id} className="grid grid-cols-5 gap-4 items-center">
-                  <input
-                    type="text"
-                    value={p.keyword}
-                    onChange={(e) => updateDosePattern(p.id, 'keyword', e.target.value)}
-                    placeholder="e.g., tds"
-                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="text"
-                    value={p.patternValue}
-                    onChange={(e) => updateDosePattern(p.id, 'patternValue', e.target.value)}
-                    placeholder="e.g., 1-1-1"
-                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="text"
-                    value={p.description}
-                    onChange={(e) => updateDosePattern(p.id, 'description', e.target.value)}
-                    placeholder="e.g., Three times a day"
-                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={p.enabled}
-                      onChange={(e) => updateDosePattern(p.id, 'enabled', e.target.checked)}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                    />
-                  </div>
-                  <button
-                    onClick={() => removeDosePattern(p.id)}
-                    className="text-red-500 hover:text-red-700 text-sm"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Example */}
-        <section className="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800">Test Your Smart Parsing</h2>
-          </div>
-          
-          <div className="p-6">
-            <p className="text-sm text-gray-600 mb-4">
-              Try typing this in the medicine field and press Enter:
-            </p>
-            <div className="bg-gray-50 rounded-lg p-4 font-mono text-sm">
-              Arnica 200 2dr pills TDS for 7 days
-            </div>
-            <p className="text-sm text-gray-500 mt-2">
-              Expected result: Medicine=Arnica, Potency=200, Qty=2dr, Dose Form=pills, Pattern=1-1-1, Duration=7 days
-            </p>
-          </div>
-        </section>
       </main>
     </div>
   );

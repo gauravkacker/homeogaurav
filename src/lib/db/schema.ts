@@ -1,150 +1,168 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+// Database schema for Homeo PMS
+// Using localStorage for demo purposes
 
-// Type exports for inserts
-export type InsertPatient = typeof patients.$inferInsert;
-export type SelectPatient = typeof patients.$inferSelect;
-export type InsertVisit = typeof visits.$inferInsert;
-export type SelectVisit = typeof visits.$inferSelect;
-export type InsertPrescription = typeof prescriptions.$inferInsert;
-export type SelectPrescription = typeof prescriptions.$inferSelect;
-export type InsertFee = typeof fees.$inferInsert;
-export type SelectFee = typeof fees.$inferSelect;
-export type InsertPharmacyQueue = typeof pharmacyQueue.$inferInsert;
-export type SelectPharmacyQueue = typeof pharmacyQueue.$inferSelect;
-export type InsertCombination = typeof combinations.$inferInsert;
-export type SelectCombination = typeof combinations.$inferSelect;
-export type InsertMedicineMemory = typeof medicineUsageMemory.$inferInsert;
-export type SelectMedicineMemory = typeof medicineUsageMemory.$inferSelect;
-export type InsertSetting = typeof settings.$inferInsert;
-export type SelectSetting = typeof settings.$inferSelect;
+export type User = {
+  id: string;
+  username: string;
+  password: string;
+  name: string;
+  role: 'admin' | 'doctor' | 'receptionist' | 'nurse';
+  email?: string;
+  phone?: string;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+};
 
-// Patients table
-export const patients = sqliteTable('patients', {
-  id: text('id').primaryKey(),
-  firstName: text('first_name').notNull(),
-  lastName: text('last_name').notNull(),
-  mobile: text('mobile').notNull(),
-  regNumber: text('reg_number').notNull().unique(),
-  regDate: integer('reg_date', { mode: 'timestamp' }).notNull(),
-  age: integer('age'),
-  sex: text('sex'),
-  address: text('address'),
-  email: text('email'),
-  occupation: text('occupation'),
-  weight: real('weight'),
-  bloodGroup: text('blood_group'),
-  chiefComplaints: text('chief_complaints'),
-  history: text('history'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-});
+export type Patient = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  dateOfBirth?: string;
+  gender?: 'male' | 'female' | 'other';
+  bloodGroup?: string;
+  occupation?: string;
+  referredBy?: string;
+  notes?: string;
+  photoUrl?: string;
+  tags: string;
+  isActive: number;
+  registrationNumber: string;
+  registrationDate: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
-// Visits/Cases table
-export const visits = sqliteTable('visits', {
-  id: text('id').primaryKey(),
-  patientId: text('patient_id').notNull().references(() => patients.id),
-  visitDate: integer('visit_date', { mode: 'timestamp' }).notNull(),
-  visitNumber: integer('visit_number').notNull(),
-  tokenNumber: integer('token_number'),
-  chiefComplaint: text('chief_complaint'),
-  caseText: text('case_text'),
-  diagnosis: text('diagnosis'),
-  advice: text('advice'),
-  testsRequired: text('tests_required'),
-  nextVisit: integer('next_visit', { mode: 'timestamp' }),
-  prognosis: text('prognosis'),
-  remarksToFrontdesk: text('remarks_to_frontdesk'),
-  status: text('status').notNull().default('active'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-});
+export type PatientTag = {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+};
 
-// Prescriptions table
-export const prescriptions = sqliteTable('prescriptions', {
-  id: text('id').primaryKey(),
-  visitId: text('visit_id').notNull().references(() => visits.id),
-  patientId: text('patient_id').notNull().references(() => patients.id),
-  medicine: text('medicine').notNull(),
-  potency: text('potency'),
-  quantity: text('quantity').notNull(),
-  doseForm: text('dose_form').default('pills'),
-  dosePattern: text('dose_pattern'),
-  frequency: text('frequency'),
-  duration: text('duration'),
-  durationDays: integer('duration_days'),
-  bottles: integer('bottles').default(1),
-  instructions: text('instructions'),
-  rowOrder: integer('row_order').notNull(),
-  isCombination: integer('is_combination', { mode: 'boolean' }).default(false),
-  combinationName: text('combination_name'),
-  combinationContent: text('combination_content'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-});
+export type Appointment = {
+  id: string;
+  patientId: string;
+  doctorId: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  type: 'new' | 'followup' | 'emergency';
+  status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no-show';
+  notes?: string;
+  fees?: number;
+  feesPaid: number;
+  createdAt: string;
+  updatedAt: string;
+};
 
-// Combination Medicines
-export const combinations = sqliteTable('combinations', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull().unique(),
-  content: text('content').notNull(),
-  showComposition: integer('show_composition', { mode: 'boolean' }).default(true),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-});
+export type Visit = {
+  id: string;
+  patientId: string;
+  doctorId: string;
+  appointmentId?: string;
+  visitDate: string;
+  chiefComplaint?: string;
+  history?: string;
+  examination?: string;
+  diagnosis?: string;
+  prescription: string;
+  advice?: string;
+  nextVisitDate?: string;
+  weight?: number;
+  temperature?: number;
+  pulse?: number;
+  bloodPressure?: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
-// Fee records
-export const fees = sqliteTable('fees', {
-  id: text('id').primaryKey(),
-  patientId: text('patient_id').notNull().references(() => patients.id),
-  visitId: text('visit_id').references(() => visits.id),
-  amount: real('amount').notNull(),
-  feeType: text('fee_type').notNull(),
-  paymentStatus: text('payment_status').notNull().default('pending'),
-  discountPercent: real('discount_percent'),
-  discountReason: text('discount_reason'),
-  paymentMethod: text('payment_method'),
-  collectedBy: text('collected_by'),
-  notes: text('notes'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-});
+export type Medicine = {
+  id: string;
+  name: string;
+  category: string;
+  potency?: string;
+  unit: string;
+  stock: number;
+  minStock: number;
+  price: number;
+  manufacturer?: string;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+};
 
-// Pharmacy Queue
-export const pharmacyQueue = sqliteTable('pharmacy_queue', {
-  id: text('id').primaryKey(),
-  visitId: text('visit_id').notNull().references(() => visits.id),
-  patientId: text('patient_id').notNull().references(() => patients.id),
-  prescriptionIds: text('prescription_ids').notNull(),
-  priority: integer('priority', { mode: 'boolean' }).default(false),
-  status: text('status').notNull().default('pending'),
-  stopReason: text('stop_reason'),
-  preparedBy: text('prepared_by'),
-  deliveredAt: integer('delivered_at', { mode: 'timestamp' }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-});
+export type CombinationMedicine = {
+  id: string;
+  name: string;
+  medicines: string;
+  defaultPotency?: string;
+  notes?: string;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+};
 
-// Medicine usage memory
-export const medicineUsageMemory = sqliteTable('medicine_usage_memory', {
-  id: text('id').primaryKey(),
-  medicine: text('medicine').notNull(),
-  potency: text('potency'),
-  quantity: text('quantity'),
-  doseForm: text('dose_form'),
-  dosePattern: text('dose_pattern'),
-  frequency: text('frequency'),
-  duration: text('duration'),
-  useCount: integer('use_count').notNull().default(1),
-  lastUsedAt: integer('last_used_at', { mode: 'timestamp' }).notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+export type Fee = {
+  id: string;
+  name: string;
+  amount: number;
+  type: 'consultation' | 'procedure' | 'package' | 'other';
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+};
 
-// Settings table
-export const settings = sqliteTable('settings', {
-  id: text('id').primaryKey(),
-  key: text('key').notNull().unique(),
-  value: text('value').notNull(),
-  category: text('category').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-});
+export type TimeSlot = {
+  id: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  slotDuration: number;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type QueueItem = {
+  id: string;
+  doctorId: string;
+  date: string;
+  patientId: string;
+  appointmentId?: string;
+  position: number;
+  status: 'waiting' | 'in-progress' | 'completed' | 'skipped';
+  estimatedTime?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Message = {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  subject?: string;
+  body: string;
+  isRead: number;
+  createdAt: string;
+};
+
+export type Settings = {
+  id: string;
+  key: string;
+  value: string;
+  type: 'string' | 'number' | 'boolean' | 'json';
+  updatedAt: string;
+};
+
+export type SmartParsingSettings = {
+  quantities: string[];
+  doseForms: string[];
+  dosePatterns: string[];
+};

@@ -1,87 +1,78 @@
-# Active Context: Next.js Starter Template
+# Active Context: Homeo PMS Application
 
 ## Current State
 
-**Template Status**: ✅ Ready for development
+**Application Status**: ✅ Complete Homeopathy Clinic Management System
 
-The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. It's ready for AI-assisted expansion to build any type of application.
+A complete Homeopathy Clinic Patient Management System built with Next.js 16, TypeScript, and Tailwind CSS 4. Uses localStorage for demo data persistence.
 
 ## Recently Completed
 
-- [x] Base Next.js 16 setup with App Router
-- [x] TypeScript configuration with strict mode
-- [x] Tailwind CSS 4 integration
-- [x] ESLint configuration
-- [x] Memory bank documentation
-- [x] Recipe system for common features
+- [x] Complete database schema with all entity types (patients, appointments, visits, medicines, etc.)
+- [x] localStorage-based data persistence with demo initialization
+- [x] Authentication system with role-based access (doctor, admin, receptionist)
+- [x] Dashboard with statistics and quick actions
+- [x] Patient management (list, add, view, edit)
+- [x] Appointments module (list, schedule, manage)
+- [x] Doctor Panel with smart prescription parsing
+- [x] Queue management system
+- [x] Internal messaging system
+- [x] Settings page (fees, registration, slots)
+- [x] Smart Parsing Settings for prescription recognition
+- [x] Admin module (users, activity log)
 
 ## Current Structure
 
-| File/Directory | Purpose | Status |
-|----------------|---------|--------|
-| `src/app/page.tsx` | Home page | ✅ Ready |
-| `src/app/layout.tsx` | Root layout | ✅ Ready |
-| `src/app/globals.css` | Global styles | ✅ Ready |
-| `.kilocode/` | AI context & recipes | ✅ Ready |
+| Module | Path | Status |
+|--------|------|--------|
+| Authentication | `/login` | ✅ Complete |
+| Dashboard | `/dashboard` | ✅ Complete |
+| Patients | `/patients`, `/patients/new`, `/patients/[id]` | ✅ Complete |
+| Appointments | `/appointments`, `/appointments/new` | ✅ Complete |
+| Doctor Panel | `/doctor-panel` | ✅ Complete |
+| Queue | `/queue` | ✅ Complete |
+| Messages | `/messages` | ✅ Complete |
+| Settings | `/settings`, `/settings/smart-parsing` | ✅ Complete |
+| Admin | `/admin/users`, `/admin/activity-log` | ✅ Complete |
 
-## Current Focus
+## API Routes
 
-The template is ready. Next steps depend on user requirements:
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `/api/patients` | GET, POST, PUT, DELETE | Patient CRUD |
+| `/api/appointments` | GET, POST, PUT, DELETE | Appointment CRUD |
+| `/api/visits` | GET, POST, PUT, DELETE | Visit/Prescription CRUD |
+| `/api/medicines` | GET, POST, PUT, DELETE | Medicine CRUD |
+| `/api/combinations` | GET, POST, PUT, DELETE | Combination medicines |
+| `/api/fees` | GET, POST, PUT, DELETE | Consultation fees |
+| `/api/queue` | GET, POST, PUT, DELETE | Queue management |
+| `/api/messages` | GET, POST, PUT, DELETE | Internal messaging |
+| `/api/users` | GET, POST, PUT, DELETE | User management |
+| `/api/patient-tags` | GET, POST, PUT, DELETE | Patient tags |
+| `/api/settings` | GET, POST, PUT | App settings |
+| `/api/smart-parsing` | GET, POST, PUT | Smart parsing config |
 
-1. What type of application to build
-2. What features are needed
-3. Design/branding preferences
+## Demo Credentials
 
-## Quick Start Guide
+- **Doctor**: doctor / doctor123
+- **Admin**: admin / admin123
+- **Reception**: reception / reception123
 
-### To add a new page:
+## Key Features
 
-Create a file at `src/app/[route]/page.tsx`:
-```tsx
-export default function NewPage() {
-  return <div>New page content</div>;
-}
-```
+### Smart Prescription Parsing
+- Natural language input for prescriptions
+- Auto-detects: quantities, dose forms, dosage patterns, durations
+- Configurable rules in Settings → Smart Parsing
+- Example: "Arnica 30C 1-0-1 for 15 days"
 
-### To add components:
-
-Create `src/components/` directory and add components:
-```tsx
-// src/components/ui/Button.tsx
-export function Button({ children }: { children: React.ReactNode }) {
-  return <button className="px-4 py-2 bg-blue-600 text-white rounded">{children}</button>;
-}
-```
-
-### To add a database:
-
-Follow `.kilocode/recipes/add-database.md`
-
-### To add API routes:
-
-Create `src/app/api/[route]/route.ts`:
-```tsx
-import { NextResponse } from "next/server";
-
-export async function GET() {
-  return NextResponse.json({ message: "Hello" });
-}
-```
-
-## Available Recipes
-
-| Recipe | File | Use Case |
-|--------|------|----------|
-| Add Database | `.kilocode/recipes/add-database.md` | Data persistence with Drizzle + SQLite |
-
-## Pending Improvements
-
-- [ ] Add more recipes (auth, email, etc.)
-- [ ] Add example components
-- [ ] Add testing setup recipe
+### Role-Based Access
+- Admin: Full access to all modules including user management
+- Doctor: Access to patients, appointments, prescriptions, queue
+- Receptionist: Patients, appointments, queue (read-only for sensitive data)
 
 ## Session History
 
 | Date | Changes |
 |------|---------|
-| Initial | Template created with base setup |
+| 2024-02-06 | Complete Homeo PMS application rebuilt from scratch after git sync issue |
