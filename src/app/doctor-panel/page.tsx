@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 // Types
@@ -11,7 +11,7 @@ interface Patient {
   mobile: string;
   regNumber: string;
   age?: number;
-  sex?: string;
+  gender?: string;
 }
 
 interface Visit {
@@ -31,6 +31,7 @@ interface Visit {
 }
 
 interface Prescription {
+  id: string;
   medicine: string;
   potency?: string;
   quantity: string;
@@ -44,12 +45,24 @@ interface Prescription {
   isCombination?: boolean;
   combinationName?: string;
   combinationContent?: string;
+  showDetails?: boolean;
 }
 
-interface CaseNote {
-  text: string;
-  isVague?: boolean;
-  suggestions?: string[];
+interface Combination {
+  id: string;
+  name: string;
+  content: string;
+  createdAt: Date;
+}
+
+// Medicine pattern memory type
+interface MedicinePattern {
+  medicine: string;
+  potency: string;
+  quantity: string;
+  dosePattern: string;
+  frequency: string;
+  duration: string;
 }
 
 // Main Component
@@ -90,6 +103,16 @@ export default function DoctorPanelPage() {
   const [combinationName, setCombinationName] = useState('');
   const [combinationContent, setCombinationContent] = useState('');
   const [editingCombinationIndex, setEditingCombinationIndex] = useState<number | null>(null);
+  const [savedCombinations, setSavedCombinations] = useState<Combination[]>([]);
+  const [showCombinationContent, setShowCombinationContent] = useState(false);
+  const [showSavedCombinations, setShowSavedCombinations] = useState(false);
+  
+  // Medicine autocomplete and smart entry
+  const [medicineSearch, setMedicineSearch] = useState('');
+  const [showMedicineSuggestions, setShowMedicineSuggestions] = useState(false);
+  const [medicineSuggestions, setMedicineSuggestions] = useState<string[]>([]);
+  const [usedMedicines, setUsedMedicines] = useState<string[]>([]);
+  const [medicinePatterns, setMedicinePatterns] = useState<MedicinePattern[]>([]);
   
   // Modal states
   const [showEndConsultationModal, setShowEndConsultationModal] = useState(false);
@@ -98,12 +121,12 @@ export default function DoctorPanelPage() {
   
   // Refs
   const caseTextRef = useRef<HTMLTextAreaElement>(null);
-  const medicineInputRef = useRef<HTMLInputElement>(null);
+  const medicineInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const suggestionRef = useRef<HTMLDivElement>(null);
 
   // Load patient data
   const loadPatientData = useCallback(async (id: string) => {
-    // TODO: Fetch patient, visits, and fee data from API
-    // For now, using mock data
+    // Mock data for now
     const mockPatient: Patient = {
       id,
       firstName: 'John',
@@ -111,7 +134,7 @@ export default function DoctorPanelPage() {
       mobile: '9876543210',
       regNumber: 'DK-001',
       age: 35,
-      sex: 'Male',
+      gender: 'Male',
     };
     setPatient(mockPatient);
 
@@ -142,6 +165,22 @@ export default function DoctorPanelPage() {
     // Mock last fee
     setFeeAmount('500');
     setFeeType('consultation');
+  }, []);
+
+  // Load medicine patterns from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('medicinePatterns');
+    if (saved) {
+      setMedicinePatterns(JSON.parse(saved));
+    }
+    const medicines = localStorage.getItem('usedMedicines');
+    if (medicines) {
+      setUsedMedicines(JSON.parse(medicines));
+    }
+    const combinations = localStorage.getItem('savedCombinations');
+    if (combinations) {
+      setSavedCombinations(JSON.parse(combinations));
+    }
   }, []);
 
   useEffect(() => {
@@ -178,10 +217,172 @@ export default function DoctorPanelPage() {
     // This would integrate with AI/system assist in real implementation
   };
 
+  // ===== MEDICINE AUTOCOMPLETE =====
+
+  const handleMedicineSearch = (index: number, value: string) => {
+    updatePrescriptionRow(index, 'medicine', value);
+    setMedicineSearch(value);
+
+    if (value.length >= 1) {
+      // Combine used medicines and saved combinations
+      const allMedicines = [...usedMedicines, ...savedCombinations.map(c => c.name)];
+      const filtered = allMedicines.filter(m => 
+        m.toLowerCase().includes(value.toLowerCase())
+      );
+      setMedicineSuggestions(filtered.slice(0, 10));
+      setShowMedicineSuggestions(true);
+    } else {
+      setShowMedicineSuggestions(false);
+    }
+  };
+
+  const selectMedicineSuggestion = (index: number, medicine: string) => {
+    updatePrescriptionRow(index, 'medicine', medicine);
+    setMedicineSearch('');
+    setShowMedicineSuggestions(false);
+
+    // Add to used medicines
+    if (!usedMedicines.includes(medicine)) {
+      const updated = [medicine, ...usedMedicines].slice(0, 50);
+      setUsedMedicines(updated);
+      localStorage.setItem('usedMedicines', JSON.stringify(updated));
+    }
+
+    // Check for saved pattern
+    const savedPattern = medicinePatterns.find(
+      p => p.medicine.toLowerCase() === medicine.toLowerCase()
+    );
+    if (savedPattern) {
+      updatePrescriptionRow(index, 'potency', savedPattern.potency);
+      updatePrescriptionRow(index, 'quantity', savedPattern.quantity);
+      updatePrescriptionRow(index, 'dosePattern', savedPattern.dosePattern);
+      updatePrescriptionRow(index, 'frequency', savedPattern.frequency);
+      updatePrescriptionRow(index, 'duration', savedPattern.duration);
+    }
+  };
+
+  // ===== SMART PARSING =====
+
+  const parseSmartEntry = (text: string): Partial<Prescription> => {
+    // Smart parsing for one-line entry
+    // Example: "Arnica 200 2dr 4 pills TDS or 3 times a day or 4-4-4 for 7 days"
+    
+    let rx: Partial<Prescription> = {
+      quantity: '1dr',
+      doseForm: 'pills',
+      dosePattern: '1-1-1',
+      frequency: 'Daily',
+      duration: '7 days',
+      durationDays: 7,
+      bottles: 1,
+    };
+
+    const lowerText = text.toLowerCase();
+    const parts = text.split(' ').filter(p => p.trim());
+
+    // Parse medicine and potency (first 1-2 parts)
+    if (parts.length > 0 && parts[0]) {
+      // Check if it looks like a medicine name (not a number or pattern)
+      if (!/^\d+$/.test(parts[0]) && !parts[0].includes('-')) {
+        rx.medicine = parts[0];
+        
+        // Check if second part is potency (number or 200/1M etc)
+        if (parts.length > 1 && /^\d+$/.test(parts[1])) {
+          rx.potency = parts[1];
+        }
+      }
+    }
+
+    // Parse quantity and dose form
+    const quantityMatch = text.match(/(\d+)\s*(dr|oz|bottle|pills?|tablet|capsule|globe|pellets?|doses?)/i);
+    if (quantityMatch) {
+      const num = quantityMatch[1];
+      const unit = quantityMatch[2].toLowerCase();
+      rx.quantity = num + unit.charAt(0).toLowerCase() + unit.slice(1).replace(/s$/, '');
+      
+      // Determine dose form
+      if (unit.startsWith('dr')) {
+        rx.doseForm = 'drops';
+      } else if (unit.startsWith('p') || unit.startsWith('tab')) {
+        rx.doseForm = 'pills';
+      } else if (unit.startsWith('c') || unit.startsWith('cap')) {
+        rx.doseForm = 'capsules';
+      } else if (unit.startsWith('g') || unit.startsWith('globe')) {
+        rx.doseForm = 'globules';
+      } else if (unit.startsWith('oz')) {
+        rx.doseForm = 'ounces';
+      } else if (unit.startsWith('d')) {
+        rx.doseForm = 'doses';
+      }
+    }
+
+    // Parse dose pattern (4-4-4, 1-0-1, 3-3-3, etc)
+    const patternMatch = text.match(/(\d-\d-\d)/);
+    if (patternMatch) {
+      rx.dosePattern = patternMatch[1];
+      // Determine frequency based on pattern
+      const [m, a, n] = patternMatch[1].split('-').map(Number);
+      if (m > 0 && a > 0 && n > 0) {
+        rx.frequency = 'Daily';
+      } else if (m > 0 && a === 0 && n > 0) {
+        rx.frequency = 'Daily';
+      } else if (m === 0 && a > 0 && n > 0) {
+        rx.frequency = 'Daily';
+      } else if (m > 0 && a === 0 && n === 0) {
+        rx.frequency = 'Morning only';
+      } else if (m === 0 && a > 0 && n === 0) {
+        rx.frequency = 'Afternoon only';
+      } else if (m === 0 && a === 0 && n > 0) {
+        rx.frequency = 'Night only';
+      }
+    }
+
+    // Parse frequency keywords
+    if (/tds|3\s*times|three\s*times/i.test(lowerText)) {
+      rx.frequency = 'Daily';
+      rx.dosePattern = '1-1-1';
+    } else if (/bid|2\s*times|two\s*times/i.test(lowerText)) {
+      rx.frequency = 'Daily';
+      rx.dosePattern = '1-0-1';
+    } else if (/hs|at\s*bedtime|night/i.test(lowerText)) {
+      rx.frequency = 'Daily';
+      rx.dosePattern = '0-0-1';
+    } else if (/qid|4\s*times|four\s*times/i.test(lowerText)) {
+      rx.frequency = 'Daily';
+      rx.dosePattern = '1-1-1-1';
+    } else if (/od|once\s*daily/i.test(lowerText)) {
+      rx.frequency = 'Daily';
+      rx.dosePattern = '1-0-0';
+    }
+
+    // Parse duration
+    const durationMatch = text.match(/(\d+)\s*(day|week|month|hour)s?/i);
+    if (durationMatch) {
+      const num = parseInt(durationMatch[1]);
+      const unit = durationMatch[2].toLowerCase();
+      if (unit.startsWith('d')) {
+        rx.duration = `${num} day${num > 1 ? 's' : ''}`;
+        rx.durationDays = num;
+      } else if (unit.startsWith('w')) {
+        rx.duration = `${num} week${num > 1 ? 's' : ''}`;
+        rx.durationDays = num * 7;
+      } else if (unit.startsWith('m')) {
+        rx.duration = `${num} month${num > 1 ? 's' : ''}`;
+        rx.durationDays = num * 30;
+      } else if (unit.startsWith('h')) {
+        rx.duration = `${num} hour${num > 1 ? 's' : ''}`;
+        rx.durationDays = 0;
+      }
+    }
+
+    return rx;
+  };
+
   // ===== PRESCRIPTION TABLE =====
 
   const addEmptyPrescriptionRow = () => {
     setPrescriptions(prev => [...prev, {
+      id: uuidv4(),
       medicine: '',
       potency: '',
       quantity: '1dr',
@@ -216,74 +417,93 @@ export default function DoctorPanelPage() {
     });
   };
 
-  const parseSmartEntry = (text: string): Prescription => {
-    // Smart parsing for one-line entry
-    // Example: "Arnica 200 2dr 4 pills TDS or 3 times a day or 4-4-4 for 7 days"
-    const parts = text.split(' ');
+  // Save pattern when prescription is finalized
+  const saveMedicinePattern = (rx: Prescription) => {
+    if (!rx.medicine) return;
     
-    let rx: Prescription = {
-      medicine: '',
-      potency: '',
-      quantity: '1dr',
-      doseForm: 'pills',
-      dosePattern: '1-1-1',
-      frequency: 'Daily',
-      duration: '7 days',
-      bottles: 1,
+    const pattern: MedicinePattern = {
+      medicine: rx.medicine,
+      potency: rx.potency || '',
+      quantity: rx.quantity,
+      dosePattern: rx.dosePattern || '1-1-1',
+      frequency: rx.frequency || 'Daily',
+      duration: rx.duration || '7 days',
     };
 
-    // Parse medicine and potency (assume first 1-2 parts)
-    if (parts.length > 0) {
-      rx.medicine = parts[0];
-      // Check if second part is potency (number or 200/1M etc)
-      if (parts.length > 1 && /^\d+$/.test(parts[1])) {
-        rx.potency = parts[1];
+    const existingIndex = medicinePatterns.findIndex(
+      p => p.medicine.toLowerCase() === rx.medicine.toLowerCase()
+    );
+
+    let updatedPatterns;
+    if (existingIndex >= 0) {
+      updatedPatterns = [...medicinePatterns];
+      updatedPatterns[existingIndex] = pattern;
+    } else {
+      updatedPatterns = [...medicinePatterns, pattern];
+    }
+
+    setMedicinePatterns(updatedPatterns);
+    localStorage.setItem('medicinePatterns', JSON.stringify(updatedPatterns));
+  };
+
+  // Handle keyboard navigation
+  const handlePrescriptionKeyDown = (
+    e: React.KeyboardEvent,
+    index: number,
+    field: string
+  ) => {
+    const columns = ['medicine', 'potency', 'quantity', 'doseForm', 'dosePattern', 'frequency', 'duration', 'bottles'];
+    const currentIndex = columns.indexOf(field);
+    const isLastColumn = currentIndex === columns.length - 1;
+
+    if (e.key === 'Enter' && !isLastColumn) {
+      e.preventDefault();
+      // Move to next column in same row
+      const nextField = columns[currentIndex + 1];
+      const nextInput = medicineInputRefs.current[index + 1000] || medicineInputRefs.current[index]; // Simplified
+      if (nextInput) {
+        (nextInput as HTMLInputElement).focus();
+        (nextInput as HTMLInputElement).select();
+      }
+    } else if (e.key === 'Enter' && isLastColumn) {
+      // Create new row
+      e.preventDefault();
+      addEmptyPrescriptionRow();
+      setTimeout(() => {
+        medicineInputRefs.current[index + 1]?.focus();
+      }, 0);
+    } else if (e.key === 'Tab') {
+      // Default tab behavior - move to next column
+      // Already works by default
+    }
+  };
+
+  // Handle smart entry on medicine field
+  const handleMedicineKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      const value = (e.target as HTMLInputElement).value;
+      if (value && value.includes(' ')) {
+        e.preventDefault();
+        const parsed = parseSmartEntry(value);
+        
+        if (parsed.medicine) updatePrescriptionRow(index, 'medicine', parsed.medicine);
+        if (parsed.potency) updatePrescriptionRow(index, 'potency', parsed.potency);
+        if (parsed.quantity) updatePrescriptionRow(index, 'quantity', parsed.quantity);
+        if (parsed.doseForm) updatePrescriptionRow(index, 'doseForm', parsed.doseForm);
+        if (parsed.dosePattern) updatePrescriptionRow(index, 'dosePattern', parsed.dosePattern);
+        if (parsed.frequency) updatePrescriptionRow(index, 'frequency', parsed.frequency);
+        if (parsed.duration) updatePrescriptionRow(index, 'duration', parsed.duration);
+        if (parsed.durationDays) updatePrescriptionRow(index, 'durationDays', parsed.durationDays);
+        if (parsed.bottles) updatePrescriptionRow(index, 'bottles', parsed.bottles);
+
+        // Save pattern
+        const rx = prescriptions[index];
+        saveMedicinePattern({ ...rx, ...parsed } as Prescription);
       }
     }
-
-    // Parse quantity
-    const quantityMatch = text.match(/(\d+)\s*(dr|oz|bottle|pills?)/i);
-    if (quantityMatch) {
-      rx.quantity = quantityMatch[0];
-      rx.doseForm = quantityMatch[2].toLowerCase().includes('dr') ? 'drops' : 'pills';
-    }
-
-    // Parse dose pattern (4-4-4, 1-0-1, etc)
-    const patternMatch = text.match(/(\d-\d-\d)/);
-    if (patternMatch) {
-      rx.dosePattern = patternMatch[1];
-    }
-
-    // Parse frequency
-    if (/tds|3\s*times/i.test(text)) {
-      rx.frequency = 'Daily';
-      rx.dosePattern = '1-1-1';
-    } else if (/bid|2\s*times/i.test(text)) {
-      rx.frequency = 'Daily';
-      rx.dosePattern = '1-0-1';
-    } else if (/hs|night/i.test(text)) {
-      rx.frequency = 'Daily';
-      rx.dosePattern = '0-0-1';
-    }
-
-    // Parse duration
-    const durationMatch = text.match(/(\d+)\s*(day|week|month)/i);
-    if (durationMatch) {
-      rx.duration = `${durationMatch[1]} ${durationMatch[2]}s`;
-      rx.durationDays = parseInt(durationMatch[1]) * (durationMatch[2].toLowerCase().startsWith('w') ? 7 : durationMatch[2].toLowerCase().startsWith('m') ? 30 : 1);
-    }
-
-    return rx;
   };
 
   // ===== COMBINATION MEDICINES =====
-
-  const handleOpenCombination = (index: number) => {
-    setEditingCombinationIndex(index);
-    setCombinationName(prescriptions[index].combinationName || '');
-    setCombinationContent(prescriptions[index].combinationContent || '');
-    setShowCombinationModal(true);
-  };
 
   const saveCombination = () => {
     if (editingCombinationIndex !== null) {
@@ -299,16 +519,65 @@ export default function DoctorPanelPage() {
         return updated;
       });
     }
+
+    // Save to combinations list
+    if (!savedCombinations.find(c => c.name.toLowerCase() === combinationName.toLowerCase())) {
+      const newCombination: Combination = {
+        id: uuidv4(),
+        name: combinationName,
+        content: combinationContent,
+        createdAt: new Date(),
+      };
+      const updatedCombinations = [newCombination, ...savedCombinations];
+      setSavedCombinations(updatedCombinations);
+      localStorage.setItem('savedCombinations', JSON.stringify(updatedCombinations));
+    }
+
     setShowCombinationModal(false);
     setEditingCombinationIndex(null);
     setCombinationName('');
     setCombinationContent('');
   };
 
+  const handleOpenCombination = (index: number, existing?: boolean) => {
+    if (existing) {
+      setEditingCombinationIndex(index);
+      setCombinationName(prescriptions[index].combinationName || '');
+      setCombinationContent(prescriptions[index].combinationContent || '');
+    } else {
+      setEditingCombinationIndex(index);
+      setCombinationName('');
+      setCombinationContent('');
+    }
+    setShowCombinationModal(true);
+  };
+
+  const insertSavedCombination = (combination: Combination, index: number) => {
+    setPrescriptions(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        isCombination: true,
+        combinationName: combination.name,
+        combinationContent: combination.content,
+        medicine: combination.name,
+      };
+      return updated;
+    });
+    setShowSavedCombinations(false);
+  };
+
   // ===== END CONSULTATION =====
 
   const handleEndConsultation = async () => {
     if (!currentVisit) return;
+
+    // Save all medicine patterns
+    prescriptions.forEach(rx => {
+      if (rx.medicine) {
+        saveMedicinePattern(rx);
+      }
+    });
 
     // Save visit data
     const visitData = {
@@ -363,6 +632,18 @@ export default function DoctorPanelPage() {
     );
   }
 
+  // Column configuration
+  const prescriptionColumns = [
+    { key: 'medicine', label: 'Medicine', width: 'w-48' },
+    { key: 'potency', label: 'Potency', width: 'w-16' },
+    { key: 'quantity', label: 'Qty', width: 'w-20' },
+    { key: 'doseForm', label: 'Dose Form', width: 'w-24' },
+    { key: 'dosePattern', label: 'Pattern', width: 'w-20' },
+    { key: 'frequency', label: 'Frequency', width: 'w-28' },
+    { key: 'duration', label: 'Duration', width: 'w-24' },
+    { key: 'bottles', label: 'Bottles', width: 'w-16' },
+  ] as const;
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header with Patient Context */}
@@ -378,7 +659,7 @@ export default function DoctorPanelPage() {
                   {patient.firstName} {patient.lastName}
                 </p>
                 <p className="text-xs text-blue-600">
-                  Reg: {patient.regNumber} | {patient.age}yrs | {patient.sex}
+                  Reg: {patient.regNumber} | {patient.age}yrs | {patient.gender}
                 </p>
               </div>
               <div className="text-right">
@@ -481,60 +762,127 @@ export default function DoctorPanelPage() {
               <table className="w-full">
                 <thead>
                   <tr className="text-left text-sm text-gray-500 border-b border-gray-100">
-                    <th className="pb-3 font-medium">Medicine</th>
-                    <th className="pb-3 font-medium w-20">Potency</th>
-                    <th className="pb-3 font-medium w-24">Quantity</th>
-                    <th className="pb-3 font-medium w-24">Pattern</th>
-                    <th className="pb-3 font-medium w-24">Frequency</th>
-                    <th className="pb-3 font-medium w-28">Duration</th>
-                    <th className="pb-3 font-medium w-16">Qty</th>
-                    <th className="pb-3 font-medium w-16"></th>
+                    {prescriptionColumns.map((col) => (
+                      <th key={col.key} className={`pb-3 font-medium ${col.width}`}>
+                        {col.label}
+                      </th>
+                    ))}
+                    <th className="pb-3 font-medium w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {prescriptions.map((rx, index) => (
-                    <tr key={index} className="border-b border-gray-50">
-                      <td className="py-2">
-                        {rx.isCombination ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleOpenCombination(index)}
-                              className="text-blue-600 font-medium hover:underline"
-                            >
-                              {rx.combinationName}
-                            </button>
-                          </div>
-                        ) : (
-                          <input
-                            type="text"
-                            value={rx.medicine}
-                            onChange={(e) => updatePrescriptionRow(index, 'medicine', e.target.value)}
-                            placeholder="Medicine name"
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                          />
-                        )}
-                        {!rx.isCombination && (
+                    <tr key={rx.id} className="border-b border-gray-50">
+                      {/* Medicine Column with + button */}
+                      <td className="py-2 relative">
+                        <div className="flex items-center gap-1">
                           <button
-                            onClick={() => handleOpenCombination(index)}
-                            className="text-xs text-blue-500 hover:underline mt-1"
+                            onClick={() => setShowSavedCombinations(!showSavedCombinations)}
+                            className="text-blue-500 hover:bg-blue-50 p-1 rounded"
+                            title="Insert Combination"
                           >
-                            + Combination
+                            +
                           </button>
+                          {rx.isCombination ? (
+                            <div className="flex-1">
+                              <button
+                                onClick={() => handleOpenCombination(index, true)}
+                                className="text-blue-600 font-medium hover:underline"
+                              >
+                                {rx.combinationName}
+                              </button>
+                              {rx.showDetails && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {rx.combinationContent}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex-1 relative">
+                              <input
+                                ref={el => { medicineInputRefs.current[index] = el; }}
+                                type="text"
+                                value={rx.medicine}
+                                onChange={(e) => handleMedicineSearch(index, e.target.value)}
+                                onKeyDown={(e) => handleMedicineKeyDown(e, index)}
+                                onFocus={() => rx.medicine && setShowMedicineSuggestions(true)}
+                                placeholder="Type medicine..."
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                              />
+                              {/* Medicine Suggestions Dropdown */}
+                              {showMedicineSuggestions && medicineSuggestions.length > 0 && (
+                                <div 
+                                  ref={suggestionRef}
+                                  className="absolute z-50 left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                                >
+                                  {medicineSuggestions.map((suggestion, i) => (
+                                    <button
+                                      key={i}
+                                      onClick={() => selectMedicineSuggestion(index, suggestion)}
+                                      className="w-full px-3 py-2 text-left hover:bg-blue-50 text-sm"
+                                    >
+                                      {suggestion}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {!rx.isCombination && (
+                                <button
+                                  onClick={() => handleOpenCombination(index)}
+                                  className="text-xs text-blue-500 hover:underline mt-1 block"
+                                >
+                                  Combination
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {/* Saved Combinations Dropdown */}
+                        {showSavedCombinations && (
+                          <div className="absolute z-50 left-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                            <div className="p-2 border-b border-gray-100">
+                              <input
+                                type="text"
+                                placeholder="Search combinations..."
+                                className="w-full px-2 py-1 text-sm border rounded"
+                                onChange={(e) => {
+                                  // Filter combinations
+                                }}
+                              />
+                            </div>
+                            {savedCombinations.map((combo) => (
+                              <button
+                                key={combo.id}
+                                onClick={() => insertSavedCombination(combo, index)}
+                                className="w-full px-3 py-2 text-left hover:bg-blue-50 text-sm"
+                              >
+                                <div className="font-medium">{combo.name}</div>
+                                <div className="text-xs text-gray-500 truncate">{combo.content}</div>
+                              </button>
+                            ))}
+                          </div>
                         )}
                       </td>
+                      
+                      {/* Potency */}
                       <td className="py-2">
                         <input
+                          ref={el => { medicineInputRefs.current[index + 1000] = el; }}
                           type="text"
                           value={rx.potency || ''}
                           onChange={(e) => updatePrescriptionRow(index, 'potency', e.target.value)}
+                          onKeyDown={(e) => handlePrescriptionKeyDown(e, index, 'potency')}
                           placeholder="200"
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
                       </td>
+                      
+                      {/* Quantity */}
                       <td className="py-2">
                         <select
                           value={rx.quantity}
                           onChange={(e) => updatePrescriptionRow(index, 'quantity', e.target.value)}
+                          onKeyDown={(e) => handlePrescriptionKeyDown(e, index, 'quantity')}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="1dr">1dr</option>
@@ -548,19 +896,44 @@ export default function DoctorPanelPage() {
                           <option value="2 bottles">2 bottles</option>
                         </select>
                       </td>
+                      
+                      {/* Dose Form */}
+                      <td className="py-2">
+                        <select
+                          value={rx.doseForm || 'pills'}
+                          onChange={(e) => updatePrescriptionRow(index, 'doseForm', e.target.value)}
+                          onKeyDown={(e) => handlePrescriptionKeyDown(e, index, 'doseForm')}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="pills">Pills</option>
+                          <option value="drops">Drops</option>
+                          <option value="capsules">Capsules</option>
+                          <option value="globules">Globules</option>
+                          <option value="tablet">Tablet</option>
+                          <option value="syrup">Syrup</option>
+                          <option value="ointment">Ointment</option>
+                          <option value="powder">Powder</option>
+                        </select>
+                      </td>
+                      
+                      {/* Dose Pattern */}
                       <td className="py-2">
                         <input
                           type="text"
                           value={rx.dosePattern || ''}
                           onChange={(e) => updatePrescriptionRow(index, 'dosePattern', e.target.value)}
+                          onKeyDown={(e) => handlePrescriptionKeyDown(e, index, 'dosePattern')}
                           placeholder="1-1-1"
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
                       </td>
+                      
+                      {/* Frequency */}
                       <td className="py-2">
                         <select
                           value={rx.frequency}
                           onChange={(e) => updatePrescriptionRow(index, 'frequency', e.target.value)}
+                          onKeyDown={(e) => handlePrescriptionKeyDown(e, index, 'frequency')}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="Daily">Daily</option>
@@ -569,26 +942,37 @@ export default function DoctorPanelPage() {
                           <option value="Monthly">Monthly</option>
                           <option value="SOS">SOS</option>
                           <option value="STAT">STAT</option>
+                          <option value="Morning only">Morning</option>
+                          <option value="Afternoon only">Afternoon</option>
+                          <option value="Night only">Night</option>
                         </select>
                       </td>
+                      
+                      {/* Duration */}
                       <td className="py-2">
                         <input
                           type="text"
                           value={rx.duration || ''}
                           onChange={(e) => updatePrescriptionRow(index, 'duration', e.target.value)}
+                          onKeyDown={(e) => handlePrescriptionKeyDown(e, index, 'duration')}
                           placeholder="7 days"
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
                       </td>
+                      
+                      {/* Bottles */}
                       <td className="py-2">
                         <input
                           type="number"
                           value={rx.bottles || 1}
-                          onChange={(e) => updatePrescriptionRow(index, 'bottles', parseInt(e.target.value))}
+                          onChange={(e) => updatePrescriptionRow(index, 'bottles', parseInt(e.target.value) || 1)}
+                          onKeyDown={(e) => handlePrescriptionKeyDown(e, index, 'bottles')}
                           min={1}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
                       </td>
+                      
+                      {/* Actions */}
                       <td className="py-2">
                         <button
                           onClick={() => removePrescriptionRow(index)}
@@ -606,6 +990,7 @@ export default function DoctorPanelPage() {
                 <div className="text-center py-8 text-gray-400">
                   <p>No prescriptions added yet.</p>
                   <p className="text-sm">Type medicine name or click &quot;Add Medicine&quot;</p>
+                  <p className="text-sm mt-2">Tip: Type full prescription like &quot;Arnica 200 2dr pills 1-1-1 for 7 days&quot;</p>
                 </div>
               )}
             </div>
@@ -663,6 +1048,7 @@ export default function DoctorPanelPage() {
                   />
                   <select
                     value={nextVisit}
+                    onChange={(e) => setNextVisit(e.target.value)}
                     className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select unit</option>
@@ -888,7 +1274,7 @@ export default function DoctorPanelPage() {
                 <textarea
                   value={combinationContent}
                   onChange={(e) => setCombinationContent(e.target.value)}
-                  placeholder="e.g., Arnica + Rhus tox + Bryonia"
+                  placeholder="e.g., Arnica 200 + Rhus tox 200 + Bryonia 200"
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
                 />
@@ -905,7 +1291,7 @@ export default function DoctorPanelPage() {
                   onClick={saveCombination}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  Save
+                  OK
                 </button>
               </div>
             </div>
@@ -946,7 +1332,7 @@ export default function DoctorPanelPage() {
   );
 }
 
-// Helper function (would be imported in real implementation)
+// Helper function
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
