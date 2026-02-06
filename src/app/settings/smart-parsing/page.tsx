@@ -84,18 +84,18 @@ export default function SmartParsingSettingsPage() {
   const [dosePatterns, setDosePatterns] = useState<DosePatternMapping[]>(defaultDosePatterns);
   const [saved, setSaved] = useState(false);
 
-  // Load from localStorage on mount
   // Load config from localStorage on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const savedConfig = localStorage.getItem('smartParsingConfig');
     if (savedConfig) {
       try {
         const config: SmartParsingConfig = JSON.parse(savedConfig);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         if (config.quantities?.length) setQuantities(config.quantities);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         if (config.doseForms?.length) setDoseForms(config.doseForms);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         if (config.dosePatterns?.length) setDosePatterns(config.dosePatterns);
       } catch (e) {
         console.error('Failed to load smart parsing config:', e);

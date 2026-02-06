@@ -174,27 +174,28 @@ export default function DoctorPanelPage() {
   }, []);
 
   // Load medicine patterns, combinations, and smart parsing config from localStorage
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const saved = localStorage.getItem('medicinePatterns');
     if (saved) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       setMedicinePatterns(JSON.parse(saved));
     }
     const medicines = localStorage.getItem('usedMedicines');
     if (medicines) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       setUsedMedicines(JSON.parse(medicines));
     }
     const combinations = localStorage.getItem('savedCombinations');
     if (combinations) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       setSavedCombinations(JSON.parse(combinations));
     }
     // Load smart parsing config
     const smartConfig = localStorage.getItem('smartParsingConfig');
     if (smartConfig) {
       try {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         setSmartParsingConfig(JSON.parse(smartConfig));
       } catch (e) {
         console.error('Failed to load smart parsing config:', e);
