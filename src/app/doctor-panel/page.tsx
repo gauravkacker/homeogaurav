@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 // Types
 interface Patient {
@@ -65,6 +66,13 @@ interface MedicinePattern {
   duration: string;
 }
 
+// Smart parsing config type
+interface SmartParsingConfig {
+  quantities: { keyword: string; displayValue: string; enabled: boolean }[];
+  doseForms: { keyword: string; displayValue: string; enabled: boolean }[];
+  dosePatterns: { keyword: string; patternValue: string; description: string; enabled: boolean }[];
+}
+
 // Main Component
 export default function DoctorPanelPage() {
   const searchParams = useSearchParams();
@@ -99,13 +107,12 @@ export default function DoctorPanelPage() {
   const [discountReason, setDiscountReason] = useState('');
   
   // Combination medicines
-  const [showCombinationModal, setShowCombinationModal] = useState(false);
-  const [combinationName, setCombinationName] = useState('');
-  const [combinationContent, setCombinationContent] = useState('');
-  const [editingCombinationIndex, setEditingCombinationIndex] = useState<number | null>(null);
   const [savedCombinations, setSavedCombinations] = useState<Combination[]>([]);
-  const [showCombinationContent, setShowCombinationContent] = useState(false);
-  const [showSavedCombinations, setShowSavedCombinations] = useState(false);
+  const [combinationDropdownIndex, setCombinationDropdownIndex] = useState<number | null>(null);
+  const [combinationSearch, setCombinationSearch] = useState('');
+  
+  // Smart parsing config
+  const [smartParsingConfig, setSmartParsingConfig] = useState<SmartParsingConfig | null>(null);
   
   // Medicine autocomplete and smart entry
   const [medicineSearch, setMedicineSearch] = useState('');
@@ -117,7 +124,6 @@ export default function DoctorPanelPage() {
   // Modal states
   const [showEndConsultationModal, setShowEndConsultationModal] = useState(false);
   const [showSameDayReopenModal, setShowSameDayReopenModal] = useState(false);
-  const [showPrescriptionPreview, setShowPrescriptionPreview] = useState(false);
   
   // Refs
   const caseTextRef = useRef<HTMLTextAreaElement>(null);
@@ -167,19 +173,32 @@ export default function DoctorPanelPage() {
     setFeeType('consultation');
   }, []);
 
-  // Load medicine patterns from localStorage
+  // Load medicine patterns, combinations, and smart parsing config from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('medicinePatterns');
     if (saved) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMedicinePatterns(JSON.parse(saved));
     }
     const medicines = localStorage.getItem('usedMedicines');
     if (medicines) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUsedMedicines(JSON.parse(medicines));
     }
     const combinations = localStorage.getItem('savedCombinations');
     if (combinations) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSavedCombinations(JSON.parse(combinations));
+    }
+    // Load smart parsing config
+    const smartConfig = localStorage.getItem('smartParsingConfig');
+    if (smartConfig) {
+      try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSmartParsingConfig(JSON.parse(smartConfig));
+      } catch (e) {
+        console.error('Failed to load smart parsing config:', e);
+      }
     }
   }, []);
 
@@ -264,7 +283,7 @@ export default function DoctorPanelPage() {
   // ===== SMART PARSING =====
 
   const parseSmartEntry = (text: string): Partial<Prescription> => {
-    // Smart parsing for one-line entry
+    // Smart parsing for one-line entry using configurable rules
     // Example: "Arnica 200 2dr 4 pills TDS or 3 times a day or 4-4-4 for 7 days"
     
     let rx: Partial<Prescription> = {
@@ -293,69 +312,57 @@ export default function DoctorPanelPage() {
       }
     }
 
-    // Parse quantity and dose form
-    const quantityMatch = text.match(/(\d+)\s*(dr|oz|bottle|pills?|tablet|capsule|globe|pellets?|doses?)/i);
-    if (quantityMatch) {
-      const num = quantityMatch[1];
-      const unit = quantityMatch[2].toLowerCase();
-      rx.quantity = num + unit.charAt(0).toLowerCase() + unit.slice(1).replace(/s$/, '');
-      
-      // Determine dose form
-      if (unit.startsWith('dr')) {
-        rx.doseForm = 'drops';
-      } else if (unit.startsWith('p') || unit.startsWith('tab')) {
-        rx.doseForm = 'pills';
-      } else if (unit.startsWith('c') || unit.startsWith('cap')) {
-        rx.doseForm = 'capsules';
-      } else if (unit.startsWith('g') || unit.startsWith('globe')) {
-        rx.doseForm = 'globules';
-      } else if (unit.startsWith('oz')) {
-        rx.doseForm = 'ounces';
-      } else if (unit.startsWith('d')) {
-        rx.doseForm = 'doses';
+    // Get enabled mappings from config
+    const quantities = smartParsingConfig?.quantities?.filter(q => q.enabled) || [];
+    const doseForms = smartParsingConfig?.doseForms?.filter(d => d.enabled) || [];
+    const dosePatterns = smartParsingConfig?.dosePatterns?.filter(p => p.enabled) || [];
+
+    // Parse quantity using configurable rules
+    for (const q of quantities) {
+      const keyword = q.keyword.toLowerCase();
+      // Match keyword in text (with word boundaries)
+      const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (regex.test(lowerText)) {
+        rx.quantity = q.displayValue;
+        break;
       }
     }
 
-    // Parse dose pattern (4-4-4, 1-0-1, 3-3-3, etc)
-    const patternMatch = text.match(/(\d-\d-\d)/);
-    if (patternMatch) {
-      rx.dosePattern = patternMatch[1];
-      // Determine frequency based on pattern
-      const [m, a, n] = patternMatch[1].split('-').map(Number);
-      if (m > 0 && a > 0 && n > 0) {
-        rx.frequency = 'Daily';
-      } else if (m > 0 && a === 0 && n > 0) {
-        rx.frequency = 'Daily';
-      } else if (m === 0 && a > 0 && n > 0) {
-        rx.frequency = 'Daily';
-      } else if (m > 0 && a === 0 && n === 0) {
-        rx.frequency = 'Morning only';
-      } else if (m === 0 && a > 0 && n === 0) {
-        rx.frequency = 'Afternoon only';
-      } else if (m === 0 && a === 0 && n > 0) {
-        rx.frequency = 'Night only';
+    // Parse dose form using configurable rules
+    for (const d of doseForms) {
+      const keyword = d.keyword.toLowerCase();
+      const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (regex.test(lowerText)) {
+        rx.doseForm = d.displayValue;
+        break;
       }
     }
 
-    // Parse frequency keywords
-    if (/tds|3\s*times|three\s*times/i.test(lowerText)) {
-      rx.frequency = 'Daily';
-      rx.dosePattern = '1-1-1';
-    } else if (/bid|2\s*times|two\s*times/i.test(lowerText)) {
-      rx.frequency = 'Daily';
-      rx.dosePattern = '1-0-1';
-    } else if (/hs|at\s*bedtime|night/i.test(lowerText)) {
-      rx.frequency = 'Daily';
-      rx.dosePattern = '0-0-1';
-    } else if (/qid|4\s*times|four\s*times/i.test(lowerText)) {
-      rx.frequency = 'Daily';
-      rx.dosePattern = '1-1-1-1';
-    } else if (/od|once\s*daily/i.test(lowerText)) {
-      rx.frequency = 'Daily';
-      rx.dosePattern = '1-0-0';
+    // Parse dose pattern using configurable rules
+    for (const p of dosePatterns) {
+      const keyword = p.keyword.toLowerCase();
+      const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (regex.test(lowerText)) {
+        rx.dosePattern = p.patternValue;
+        // Set frequency based on pattern description
+        if (p.description?.toLowerCase().includes('once')) {
+          rx.frequency = 'Daily';
+        } else if (p.description?.toLowerCase().includes('twice')) {
+          rx.frequency = 'Daily';
+        } else if (p.description?.toLowerCase().includes('three')) {
+          rx.frequency = 'Daily';
+        } else if (p.description?.toLowerCase().includes('four')) {
+          rx.frequency = 'Daily';
+        } else if (p.description?.toLowerCase().includes('bedtime') || p.description?.toLowerCase().includes('night')) {
+          rx.frequency = 'Daily';
+        } else if (p.description?.toLowerCase().includes('needed')) {
+          rx.frequency = 'SOS';
+        }
+        break;
+      }
     }
 
-    // Parse duration
+    // Parse duration (standard parsing)
     const durationMatch = text.match(/(\d+)\s*(day|week|month|hour)s?/i);
     if (durationMatch) {
       const num = parseInt(durationMatch[1]);
@@ -460,7 +467,7 @@ export default function DoctorPanelPage() {
       e.preventDefault();
       // Move to next column in same row
       const nextField = columns[currentIndex + 1];
-      const nextInput = medicineInputRefs.current[index + 1000] || medicineInputRefs.current[index]; // Simplified
+      const nextInput = medicineInputRefs.current[index + 1000] || medicineInputRefs.current[index];
       if (nextInput) {
         (nextInput as HTMLInputElement).focus();
         (nextInput as HTMLInputElement).select();
@@ -474,12 +481,16 @@ export default function DoctorPanelPage() {
       }, 0);
     } else if (e.key === 'Tab') {
       // Default tab behavior - move to next column
-      // Already works by default
     }
   };
 
-  // Handle smart entry on medicine field
+  // Handle smart entry on medicine field (Enter key triggers smart parsing)
   const handleMedicineKeyDown = (e: React.KeyboardEvent, index: number) => {
+    // Close combination dropdown on any key
+    if (combinationDropdownIndex !== null) {
+      setCombinationDropdownIndex(null);
+    }
+
     if (e.key === 'Enter' || e.key === 'Tab') {
       const value = (e.target as HTMLInputElement).value;
       if (value && value.includes(' ')) {
@@ -505,51 +516,13 @@ export default function DoctorPanelPage() {
 
   // ===== COMBINATION MEDICINES =====
 
-  const saveCombination = () => {
-    if (editingCombinationIndex !== null) {
-      setPrescriptions(prev => {
-        const updated = [...prev];
-        updated[editingCombinationIndex] = {
-          ...updated[editingCombinationIndex],
-          isCombination: true,
-          combinationName,
-          combinationContent,
-          medicine: combinationName,
-        };
-        return updated;
-      });
-    }
-
-    // Save to combinations list
-    if (!savedCombinations.find(c => c.name.toLowerCase() === combinationName.toLowerCase())) {
-      const newCombination: Combination = {
-        id: uuidv4(),
-        name: combinationName,
-        content: combinationContent,
-        createdAt: new Date(),
-      };
-      const updatedCombinations = [newCombination, ...savedCombinations];
-      setSavedCombinations(updatedCombinations);
-      localStorage.setItem('savedCombinations', JSON.stringify(updatedCombinations));
-    }
-
-    setShowCombinationModal(false);
-    setEditingCombinationIndex(null);
-    setCombinationName('');
-    setCombinationContent('');
-  };
-
-  const handleOpenCombination = (index: number, existing?: boolean) => {
-    if (existing) {
-      setEditingCombinationIndex(index);
-      setCombinationName(prescriptions[index].combinationName || '');
-      setCombinationContent(prescriptions[index].combinationContent || '');
+  const toggleCombinationDropdown = (index: number) => {
+    if (combinationDropdownIndex === index) {
+      setCombinationDropdownIndex(null);
     } else {
-      setEditingCombinationIndex(index);
-      setCombinationName('');
-      setCombinationContent('');
+      setCombinationDropdownIndex(index);
+      setCombinationSearch('');
     }
-    setShowCombinationModal(true);
   };
 
   const insertSavedCombination = (combination: Combination, index: number) => {
@@ -564,7 +537,50 @@ export default function DoctorPanelPage() {
       };
       return updated;
     });
-    setShowSavedCombinations(false);
+    setCombinationDropdownIndex(null);
+  };
+
+  const saveNewCombination = (index: number, name: string, content: string) => {
+    // Update current prescription
+    setPrescriptions(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        isCombination: true,
+        combinationName: name,
+        combinationContent: content,
+        medicine: name,
+      };
+      return updated;
+    });
+
+    // Save to combinations list if not exists
+    if (!savedCombinations.find(c => c.name.toLowerCase() === name.toLowerCase())) {
+      const newCombination: Combination = {
+        id: uuidv4(),
+        name,
+        content,
+        createdAt: new Date(),
+      };
+      const updatedCombinations = [newCombination, ...savedCombinations];
+      setSavedCombinations(updatedCombinations);
+      localStorage.setItem('savedCombinations', JSON.stringify(updatedCombinations));
+    }
+
+    setCombinationDropdownIndex(null);
+  };
+
+  const removeCombination = (index: number) => {
+    setPrescriptions(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        isCombination: false,
+        combinationName: undefined,
+        combinationContent: undefined,
+      };
+      return updated;
+    });
   };
 
   // ===== END CONSULTATION =====
@@ -595,10 +611,6 @@ export default function DoctorPanelPage() {
     };
 
     // TODO: API calls to save data
-    // await saveVisit(visitData);
-    // await savePrescriptions(currentVisit.id, patient!.id, prescriptions);
-    // await updateFeeStatus(feeAmount, paymentStatus, discountPercent, discountReason);
-
     setShowEndConsultationModal(true);
   };
 
@@ -607,7 +619,6 @@ export default function DoctorPanelPage() {
   const searchMateriaMedica = async (query: string) => {
     setMateriaMedicaQuery(query);
     // TODO: Implement materia medica search
-    // This would search against a materia medica database
   };
 
   // ===== PAST HISTORY =====
@@ -681,6 +692,12 @@ export default function DoctorPanelPage() {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-3">
+            <Link
+              href="/settings/smart-parsing"
+              className="px-4 py-2 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100"
+            >
+              ⚙️ Smart Parsing
+            </Link>
             <button
               onClick={() => setShowPharmacyQueue(!showPharmacyQueue)}
               className="px-4 py-2 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100"
@@ -777,27 +794,45 @@ export default function DoctorPanelPage() {
                       <td className="py-2 relative">
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => setShowSavedCombinations(!showSavedCombinations)}
+                            onClick={() => toggleCombinationDropdown(index)}
                             className="text-blue-500 hover:bg-blue-50 p-1 rounded"
                             title="Insert Combination"
                           >
                             +
                           </button>
-                          {rx.isCombination ? (
+                          
+                          {/* Combination indicator */}
+                          {rx.isCombination && (
                             <div className="flex-1">
                               <button
-                                onClick={() => handleOpenCombination(index, true)}
                                 className="text-blue-600 font-medium hover:underline"
+                                title={rx.combinationContent}
                               >
                                 {rx.combinationName}
                               </button>
-                              {rx.showDetails && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {rx.combinationContent}
-                                </p>
+                              {rx.combinationContent && (
+                                <button
+                                  onClick={() => {
+                                    const updated = [...prescriptions];
+                                    updated[index] = { ...updated[index], showDetails: !updated[index].showDetails };
+                                    setPrescriptions(updated);
+                                  }}
+                                  className="text-xs text-gray-400 hover:text-gray-600 ml-2"
+                                >
+                                  {rx.showDetails ? '▼' : '▶'}
+                                </button>
                               )}
+                              <button
+                                onClick={() => removeCombination(index)}
+                                className="text-xs text-red-400 hover:text-red-600 ml-2"
+                              >
+                                ✕
+                              </button>
                             </div>
-                          ) : (
+                          )}
+                          
+                          {/* Non-combination medicine input */}
+                          {!rx.isCombination && (
                             <div className="flex-1 relative">
                               <input
                                 ref={el => { medicineInputRefs.current[index] = el; }}
@@ -826,40 +861,60 @@ export default function DoctorPanelPage() {
                                   ))}
                                 </div>
                               )}
-                              {!rx.isCombination && (
-                                <button
-                                  onClick={() => handleOpenCombination(index)}
-                                  className="text-xs text-blue-500 hover:underline mt-1 block"
-                                >
-                                  Combination
-                                </button>
-                              )}
+                            </div>
+                          )}
+                          
+                          {/* Show combination details */}
+                          {rx.isCombination && rx.showDetails && rx.combinationContent && (
+                            <div className="mt-2 text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                              {rx.combinationContent}
                             </div>
                           )}
                         </div>
-                        {/* Saved Combinations Dropdown */}
-                        {showSavedCombinations && (
-                          <div className="absolute z-50 left-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                            <div className="p-2 border-b border-gray-100">
+                        
+                        {/* Combination Dropdown */}
+                        {combinationDropdownIndex === index && (
+                          <div className="absolute z-50 left-0 top-full mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-xl">
+                            <div className="p-3 border-b border-gray-100">
                               <input
                                 type="text"
-                                placeholder="Search combinations..."
-                                className="w-full px-2 py-1 text-sm border rounded"
-                                onChange={(e) => {
-                                  // Filter combinations
-                                }}
+                                value={combinationSearch}
+                                onChange={(e) => setCombinationSearch(e.target.value)}
+                                placeholder="Search or create combination..."
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                autoFocus
                               />
                             </div>
-                            {savedCombinations.map((combo) => (
-                              <button
-                                key={combo.id}
-                                onClick={() => insertSavedCombination(combo, index)}
-                                className="w-full px-3 py-2 text-left hover:bg-blue-50 text-sm"
-                              >
-                                <div className="font-medium">{combo.name}</div>
-                                <div className="text-xs text-gray-500 truncate">{combo.content}</div>
-                              </button>
-                            ))}
+                            <div className="max-h-64 overflow-y-auto">
+                              {/* Saved combinations */}
+                              {savedCombinations
+                                .filter(c => c.name.toLowerCase().includes(combinationSearch.toLowerCase()))
+                                .map((combo) => (
+                                  <button
+                                    key={combo.id}
+                                    onClick={() => insertSavedCombination(combo, index)}
+                                    className="w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-50"
+                                  >
+                                    <div className="font-medium text-gray-800">{combo.name}</div>
+                                    <div className="text-xs text-gray-500 truncate">{combo.content}</div>
+                                  </button>
+                                ))}
+                              {/* Create new combination */}
+                              {combinationSearch && !savedCombinations.find(c => c.name.toLowerCase() === combinationSearch.toLowerCase()) && (
+                                <button
+                                  onClick={() => {
+                                    const name = combinationSearch;
+                                    const content = prompt('Enter combination content:');
+                                    if (content) {
+                                      saveNewCombination(index, name, content);
+                                    }
+                                  }}
+                                  className="w-full px-4 py-3 text-left hover:bg-green-50 text-green-600 border-t border-gray-100"
+                                >
+                                  + Create &quot;{combinationSearch}&quot;
+                                </button>
+                              )}
+                            </div>
                           </div>
                         )}
                       </td>
@@ -990,7 +1045,7 @@ export default function DoctorPanelPage() {
                 <div className="text-center py-8 text-gray-400">
                   <p>No prescriptions added yet.</p>
                   <p className="text-sm">Type medicine name or click &quot;Add Medicine&quot;</p>
-                  <p className="text-sm mt-2">Tip: Type full prescription like &quot;Arnica 200 2dr pills 1-1-1 for 7 days&quot;</p>
+                  <p className="text-sm mt-2">Tip: Type full prescription like &quot;Arnica 200 2dr pills TDS for 7 days&quot;</p>
                 </div>
               )}
             </div>
@@ -1147,7 +1202,6 @@ export default function DoctorPanelPage() {
                 />
                 
                 <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {/* Search results would go here */}
                   <p className="text-sm text-gray-400 text-center py-4">
                     Type to search materia medica...
                   </p>
@@ -1247,58 +1301,6 @@ export default function DoctorPanelPage() {
         </div>
       </div>
 
-      {/* Combination Modal */}
-      {showCombinationModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-96">
-            <h3 className="text-lg font-semibold mb-4">Define Combination</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Combination Name
-                </label>
-                <input
-                  type="text"
-                  value={combinationName}
-                  onChange={(e) => setCombinationName(e.target.value)}
-                  placeholder="e.g., JointPain"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Content (free-text)
-                </label>
-                <textarea
-                  value={combinationContent}
-                  onChange={(e) => setCombinationContent(e.target.value)}
-                  placeholder="e.g., Arnica 200 + Rhus tox 200 + Bryonia 200"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowCombinationModal(false)}
-                  className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveCombination}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  OK
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Pharmacy Queue Panel */}
       {showPharmacyQueue && (
         <div className="fixed inset-y-0 right-0 w-80 bg-white shadow-xl border-l border-gray-200 z-40">
@@ -1313,7 +1315,6 @@ export default function DoctorPanelPage() {
           </div>
           
           <div className="p-4 space-y-3">
-            {/* Mock pharmacy items */}
             <div className="p-3 bg-gray-50 rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-medium text-gray-800">John Doe</span>
