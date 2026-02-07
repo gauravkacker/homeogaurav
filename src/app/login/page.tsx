@@ -27,36 +27,21 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
 
-    try {
-      const res = await fetch(`/api/users?username=${encodeURIComponent(username.toLowerCase())}`);
-      const data = await res.json();
+    // Ensure demo data is initialized
+    initializeDemoData();
 
-      if (res.ok && data.password === password) {
-        // Store user in localStorage
-        const { password: _, ...userWithoutPassword } = data;
-        localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
-        router.push('/dashboard');
-      } else {
-        setError('Invalid username or password');
-      }
-    } catch (err) {
-      // For demo, use hardcoded credentials
-      const demoUsers: Record<string, { password: string; role: string; name: string }> = {
-        'doctor': { password: 'doctor123', role: 'doctor', name: 'Dr. Smith' },
-        'admin': { password: 'admin123', role: 'admin', name: 'Admin User' },
-        'reception': { password: 'reception123', role: 'receptionist', name: 'Receptionist' }
-      };
+    // Use direct localStorage access for demo
+    const users = JSON.parse(localStorage.getItem('homeopms_users') || '[]');
+    const user = users.find((u: any) => u.username.toLowerCase() === username.toLowerCase());
 
-      const user = demoUsers[username.toLowerCase()];
-      if (user && user.password === password) {
-        localStorage.setItem('currentUser', JSON.stringify({ id: '1', username, name: user.name, role: user.role }));
-        router.push('/dashboard');
-      } else {
-        setError('Invalid username or password');
-      }
-    } finally {
-      setIsLoading(false);
+    if (user && user.password === password) {
+      const { password: _, ...userWithoutPassword } = user;
+      localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
+      router.push('/dashboard');
+    } else {
+      setError('Invalid username or password');
     }
+    setIsLoading(false);
   };
 
   return (
