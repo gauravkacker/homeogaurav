@@ -90,3 +90,4 @@ A complete Homeopathy Clinic Patient Management System built with Next.js 16, Ty
 |------|---------|
 | 2024-02-06 | Complete Homeo PMS application rebuilt from scratch after git sync issue |
 | 2024-02-06 | Added all missing pages: patient edit, visits, tags, import; appointment detail; queue doctor; settings pages (fees, registration, slots); UI components; layout components; comprehensive CSS styling |
+| 2024-02-07 | Fix: Login page now uses direct localStorage access instead of API calls to avoid server-side localStorage unavailability issue |
