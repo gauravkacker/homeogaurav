@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { initializeDemoData } from '@/lib/db/database';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +12,9 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    // Initialize demo data on first load
+    initializeDemoData();
+    
     // Check if already logged in
     const user = localStorage.getItem('currentUser');
     if (user) {
