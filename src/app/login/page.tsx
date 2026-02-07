@@ -28,7 +28,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`/api/users?username=${encodeURIComponent(username)}`);
+      const res = await fetch(`/api/users?username=${encodeURIComponent(username.toLowerCase())}`);
       const data = await res.json();
 
       if (res.ok && data.password === password) {
